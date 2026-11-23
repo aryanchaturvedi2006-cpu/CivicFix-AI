@@ -1,0 +1,282 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CITIZEN
+  WORKER
+  AUTHORITY
+  ADMIN
+}
+
+enum ComplaintCategory {
+  GARBAGE
+  ROAD_DAMAGE
+  STREETLIGHT
+  WATER_LEAKAGE
+  DRAINAGE
+  OTHER
+}
+
+enum SeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  AI_PROCESSED
+  PENDING_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  VERIFIED
+  REJECTED
+}
+
+enum EscalationLevel {
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3
+}
+
+enum MediaType {
+  INITIAL
+  RESOLUTION
+}
+
+model Department {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  code        String        @unique
+  description String?
+  users       User[]
+  complaints  Complaint[]
+  slaPolicies SLAPolicy[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("departments")
+}
+
+model User {
+  id              String        @id @default(uuid())
+  email           String        @unique
+  phone           String?       @unique
+  passwordHash    String
+  fullName        String
+  role            Role          @default(CITIZEN)
+  isActive        Boolean       @default(true)
+  departmentId    String?
+  department      Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  // Relationships
+  refreshTokens         RefreshToken[]
+  submittedComplaints   Complaint[]                 @relation("CitizenComplaints")
+  assignedWork          ComplaintAssignment[]       @relation("AssignedWorker")
+  dispatchedAssignments ComplaintAssignment[]       @relation("AssignedByAuthority")
+  statusUpdates         ComplaintStatusHistory[]    @relation("StatusChangedBy")
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([role])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id                  String    @id @default(uuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash           String    @unique
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  replacedByTokenHash String?
+  userAgent           String?
+  ipAddress           String?
+  createdAt           DateTime  @default(now())
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Complaint {
+  id                  String             @id @default(uuid())
+  trackingNumber      String             @unique
+  citizenId           String
+  citizen             User               @relation("CitizenComplaints", fields: [citizenId], references: [id], onDelete: Restrict)
+  departmentId        String?
+  department          Department?        @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  title               String
+  description         String
+  category            ComplaintCategory
+  suggestedCategory   ComplaintCategory?
+  severity            SeverityLevel      @default(MEDIUM)
+  suggestedSeverity   SeverityLevel?
+  status              ComplaintStatus    @default(SUBMITTED)
+
+  // Geospatial Information
+  latitude            Float
+  longitude           Float
+  address             String?
+  wardNumber          String?
+
+  // Duplicate Tracking
+  isDuplicate         Boolean            @default(false)
+  primaryComplaintId  String?
+  primaryComplaint    Complaint?         @relation("ComplaintDuplicates", fields: [primaryComplaintId], references: [id], onDelete: SetNull)
+  duplicates          Complaint[]        @relation("ComplaintDuplicates")
+
+  // Decoupled SLA and Escalation
+  slaDeadline         DateTime?
+  slaBreached         Boolean            @default(false)
+  breachedAt          DateTime?
+  isEscalated         Boolean            @default(false)
+  escalatedAt         DateTime?
+  escalationLevel     EscalationLevel?
+
+  // Associations
+  media               ComplaintMedia[]
+  assignments         ComplaintAssignment[]
+  statusHistory       ComplaintStatusHistory[]
+  escalations         EscalationRecord[]
+  notifications       Notification[]
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([severity])
+  @@index([citizenId])
+  @@index([departmentId])
+  @@index([latitude, longitude])
+  @@index([slaDeadline])
+  @@index([isEscalated])
+  @@index([createdAt])
+  @@map("complaints")
+}
+
+model ComplaintMedia {
+  id          String     @id @default(uuid())
+  complaintId String
+  complaint   Complaint  @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  url         String
+  publicId    String?
+  mediaType   MediaType  @default(INITIAL)
+  mimeType    String
+  sizeBytes   Int
+  createdAt   DateTime   @default(now())
+
+  @@index([complaintId, mediaType])
+  @@map("complaint_media")
+}
+
+model ComplaintAssignment {
+  id           String     @id @default(uuid())
+  complaintId  String
+  complaint    Complaint  @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  workerId     String
+  worker       User       @relation("AssignedWorker", fields: [workerId], references: [id], onDelete: Restrict)
+  assignedById String
+  assignedBy   User       @relation("AssignedByAuthority", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedAt   DateTime   @default(now())
+  notes        String?
+  isActive     Boolean    @default(true)
+
+  @@index([complaintId])
+  @@index([workerId])
+  @@index([assignedById])
+  @@map("complaint_assignments")
+}
+
+model ComplaintStatusHistory {
+  id          String          @id @default(uuid())
+  complaintId String
+  complaint   Complaint       @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  fromStatus  ComplaintStatus
+  toStatus    ComplaintStatus
+  changedById String?
+  changedBy   User?           @relation("StatusChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+  comment     String?
+  createdAt   DateTime        @default(now())
+
+  @@index([complaintId])
+  @@index([createdAt])
+  @@map("complaint_status_history")
+}
+
+model SLAPolicy {
+  id           String            @id @default(uuid())
+  departmentId String
+  department   Department        @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  category     ComplaintCategory
+  severity     SeverityLevel
+  targetHours  Int
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([departmentId, category, severity])
+  @@map("sla_policies")
+}
+
+model EscalationRecord {
+  id          String          @id @default(uuid())
+  complaintId String
+  complaint   Complaint       @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  level       EscalationLevel @default(LEVEL_1)
+  reason      String
+  escalatedTo String?
+  resolved    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+
+  @@index([complaintId])
+  @@map("escalation_records")
+}
+
+model Notification {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  complaintId String?
+  complaint   Complaint? @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  title       String
+  message     String
+  isRead      Boolean    @default(false)
+  readAt      DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  entity      String
+  entityId    String
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

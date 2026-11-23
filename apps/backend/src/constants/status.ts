@@ -1,0 +1,37 @@
+export enum ComplaintCategory {
+  GARBAGE = 'GARBAGE',
+  ROAD_DAMAGE = 'ROAD_DAMAGE',
+  STREETLIGHT = 'STREETLIGHT',
+  WATER_LEAKAGE = 'WATER_LEAKAGE',
+  DRAINAGE = 'DRAINAGE',
+  OTHER = 'OTHER',
+}
+
+export enum SeverityLevel {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export enum ComplaintStatus {
+  SUBMITTED = 'SUBMITTED',
+  AI_PROCESSED = 'AI_PROCESSED',
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  ASSIGNED = 'ASSIGNED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  RESOLVED = 'RESOLVED',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED',
+}
+
+export enum EscalationLevel {
+  LEVEL_1 = 'LEVEL_1',
+  LEVEL_2 = 'LEVEL_2',
+  LEVEL_3 = 'LEVEL_3',
+}
+
+export enum MediaType {
+  INITIAL = 'INITIAL',
+  RESOLUTION = 'RESOLUTION',
+}
