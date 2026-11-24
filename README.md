@@ -35,3 +35,17 @@ npm test
 # 5. Start development server
 npm run dev
 ```
+
+## Full Docker Stack
+
+```bash
+docker compose -f infrastructure/docker-compose.yml up --build
+```
+
+Services:
+
+- Backend API: `http://localhost:5000/api/v1`
+- AI inference: `http://localhost:8000`
+- PostgreSQL: `localhost:5432`
+
+The backend sends each submitted complaint to the AI service for category and severity inference, persists suggestions and SLA deadlines, and applies 250-meter category-based duplicate detection.

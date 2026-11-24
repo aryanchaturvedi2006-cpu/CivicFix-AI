@@ -19,6 +19,61 @@ services:
       timeout: 5s
       retries: 5
 
+  ai-service:
+    build:
+      context: ../apps/ai-service
+      dockerfile: Dockerfile
+    container_name: civicfix-ai
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_HOST: 0.0.0.0
+      AI_SERVICE_PORT: 8000
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../apps/backend
+      dockerfile: Dockerfile
+    container_name: civicfix-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      API_PREFIX: /api/v1
+      CORS_ORIGIN: http://localhost:3000
+      DATABASE_URL: postgresql://civicfix:civicfix_secret@postgres:5432/civicfix_db?schema=public
+      JWT_ACCESS_SECRET: civicfix_access_jwt_super_secret_key_at_least_32_chars_long
+      JWT_REFRESH_SECRET: civicfix_refresh_jwt_super_secret_key_at_least_32_chars_long
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN_DAYS: 7
+      BCRYPT_SALT_ROUNDS: 12
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_TIMEOUT_MS: 5000
+      STORAGE_PROVIDER: local
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "5000:5000"
+    volumes:
+      - backend_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgdata:
+    driver: local
+  backend_uploads:
     driver: local

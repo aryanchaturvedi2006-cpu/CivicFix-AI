@@ -95,3 +95,13 @@ The seed script provisions default accounts (password: `CivicFix@2026`):
 * Authority Officer: `officer.roads@civicfix.gov`
 * Field Worker: `worker.roads@civicfix.gov`
 * Citizen: `citizen@example.com`
+
+## AI and Complaint API
+
+- `GET /api/v1/ai/health` checks FastAPI connectivity.
+- `POST /api/v1/complaints` creates a citizen complaint and requests AI classification.
+- `GET /api/v1/complaints` lists complaints according to the authenticated role.
+- `GET /api/v1/complaints/:id` retrieves a complaint with media, assignment, and status history.
+- `PATCH /api/v1/complaints/:id/status` applies lifecycle transitions.
+
+The AI service is configured with `AI_SERVICE_URL` and `AI_SERVICE_TIMEOUT_MS`. Classification failure is handled gracefully: the complaint remains submitted and can be processed again through an authority workflow.

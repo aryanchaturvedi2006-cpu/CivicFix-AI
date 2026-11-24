@@ -103,21 +103,30 @@ async function main() {
     [SeverityLevel.LOW]: 120,
   };
 
-  const roadDeptId = departments['ROADS'];
-  if (roadDeptId) {
-    for (const category of categories) {
+  const departmentCategoryMatrix: Array<[string, ComplaintCategory[]]> = [
+    ['ROADS', [ComplaintCategory.ROAD_DAMAGE, ComplaintCategory.OTHER]],
+    ['SANITATION', [ComplaintCategory.GARBAGE]],
+    ['ELECTRICAL', [ComplaintCategory.STREETLIGHT]],
+    ['WATER_DRAIN', [ComplaintCategory.WATER_LEAKAGE, ComplaintCategory.DRAINAGE]],
+  ];
+
+  for (const [departmentCode, departmentCategories] of departmentCategoryMatrix) {
+    const departmentId = departments[departmentCode];
+    if (!departmentId) continue;
+
+    for (const category of departmentCategories) {
       for (const [severity, hours] of Object.entries(slaMatrix)) {
         await prisma.sLAPolicy.upsert({
           where: {
             departmentId_category_severity: {
-              departmentId: roadDeptId,
+              departmentId,
               category,
               severity: severity as SeverityLevel,
             },
           },
           update: { targetHours: hours },
           create: {
-            departmentId: roadDeptId,
+            departmentId,
             category,
             severity: severity as SeverityLevel,
             targetHours: hours,
